@@ -38,8 +38,10 @@ The integer is not a billing-grade count for Claude, Grok, Gemini, Qwen, or othe
 
 ## Build
 
-Rust 1.97.0, edition 2024:
+Rust 1.88+, edition 2024. nixpkgs 26.05 (`rustc` 1.95.0) is enough:
 
 ```bash
 cargo build --release
+nix build
+nix run . -- .
 ```
