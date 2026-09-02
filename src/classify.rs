@@ -6,7 +6,7 @@ use syn::spanned::Spanned;
 use syn::visit::Visit;
 use syn::{Attribute, ImplItem, Item, Meta, Stmt, Token, TraitItem, punctuated::Punctuated};
 
-use crate::count::count;
+use crate::count::{count, token_ranges};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Breakdown {
@@ -25,6 +25,13 @@ impl Breakdown {
 enum Kind {
     Code,
     Comment,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Bucket {
+    Code,
+    Comment,
+    Test,
 }
 
 /// Split `source` into code / comments / tests and count each bucket.
@@ -49,28 +56,57 @@ pub fn breakdown(path: &Path, source: &str) -> Breakdown {
         syn_test_ranges(source)
     };
 
-    let mut code = String::new();
-    let mut comments = String::new();
-    let mut tests = String::new();
-    for (kind, range) in lex(source) {
-        let text = &source[range.clone()];
-        let in_test = test_ranges
-            .iter()
-            .any(|tests| ranges_overlap(tests, &range));
-        if in_test {
-            tests.push_str(text);
-        } else if kind == Kind::Comment {
-            comments.push_str(text);
+    let spans: Vec<_> = lex(source)
+        .into_iter()
+        .map(|(kind, range)| {
+            let bucket = if test_ranges
+                .iter()
+                .any(|tests| ranges_overlap(tests, &range))
+            {
+                Bucket::Test
+            } else if kind == Kind::Comment {
+                Bucket::Comment
+            } else {
+                Bucket::Code
+            };
+            (bucket, range)
+        })
+        .collect();
+
+    let mut result = Breakdown::default();
+    let mut span_index = 0;
+    for token in token_ranges(source) {
+        while spans[span_index].1.end <= token.start {
+            span_index += 1;
+        }
+
+        let mut code_bytes = 0;
+        let mut comment_bytes = 0;
+        let mut test_bytes = 0;
+        for (bucket, span) in &spans[span_index..] {
+            if span.start >= token.end {
+                break;
+            }
+            let overlap = token.end.min(span.end) - token.start.max(span.start);
+            match bucket {
+                Bucket::Code => code_bytes += overlap,
+                Bucket::Comment => comment_bytes += overlap,
+                Bucket::Test => test_bytes += overlap,
+            }
+        }
+
+        // A token can straddle a classification boundary. Assign it to the
+        // bucket containing most of its bytes, preferring tests and comments
+        // over code when the overlap is tied.
+        if test_bytes >= comment_bytes && test_bytes >= code_bytes {
+            result.tests += 1;
+        } else if comment_bytes >= code_bytes {
+            result.comments += 1;
         } else {
-            code.push_str(text);
+            result.code += 1;
         }
     }
-
-    Breakdown {
-        code: count(&code),
-        comments: count(&comments),
-        tests: count(&tests),
-    }
+    result
 }
 
 fn ranges_overlap(a: &Range<usize>, b: &Range<usize>) -> bool {
@@ -558,5 +594,12 @@ mod tests {
         assert!(b.tests > 0, "cfg(test) module should count");
         assert!(b.code > 0, "prod fn should count");
         assert_eq!(b.total(), b.code + b.comments + b.tests);
+    }
+
+    #[test]
+    fn rust_breakdown_total_matches_plain_token_count() {
+        let source = "fn a() {}\n// comment\nfn b() {}\n";
+        let b = breakdown(Path::new("src/lib.rs"), source);
+        assert_eq!(b.total(), count(source));
     }
 }

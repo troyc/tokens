@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::io::Read;
+use std::ops::Range;
 use std::sync::OnceLock;
 
 use anyhow::{Context, Result, bail};
@@ -49,11 +50,16 @@ fn load_ranks() -> Result<HashMap<Vec<u8>, u32>> {
 
 /// Count BPE tokens in one pretokenized piece.
 pub fn count_piece(piece: &[u8], ranks: &HashMap<Vec<u8>, u32>) -> usize {
+    piece_token_ranges(piece, ranks).len()
+}
+
+/// Byte ranges of the BPE tokens in one pretokenized piece.
+pub(crate) fn piece_token_ranges(piece: &[u8], ranks: &HashMap<Vec<u8>, u32>) -> Vec<Range<usize>> {
     if piece.is_empty() {
-        return 0;
+        return Vec::new();
     }
     if ranks.contains_key(piece) {
-        return 1;
+        return std::iter::once(0..piece.len()).collect();
     }
 
     // `starts[i]..starts[i+1]` is the i-th symbol. The last entry is the piece length.
@@ -76,7 +82,10 @@ pub fn count_piece(piece: &[u8], ranks: &HashMap<Vec<u8>, u32>) -> usize {
         starts.remove(i + 1);
     }
 
-    starts.len() - 1
+    starts
+        .windows(2)
+        .map(|bounds| bounds[0]..bounds[1])
+        .collect()
 }
 
 #[cfg(test)]
