@@ -3,13 +3,13 @@ use std::path::PathBuf;
 use anyhow::Result;
 use clap::Parser;
 
-use tok::classify::breakdown;
-use tok::count::count;
-use tok::report::{self, FileCount};
-use tok::walk::{self, display_path};
+use tokens::classify::breakdown;
+use tokens::count::count;
+use tokens::report::{self, FileCount};
+use tokens::walk::{self, display_path};
 
 #[derive(Debug, Parser)]
-#[command(name = "tok", version, about = "Count LLM tokens in a directory tree")]
+#[command(name = "tokens", version, about = "Count LLM tokens in a directory tree")]
 struct Cli {
     /// Show a code / comments / tests breakdown (Rust files).
     #[arg(short, long)]

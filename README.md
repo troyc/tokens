@@ -1,10 +1,10 @@
-# tok
+# tokens
 
 Count LLM tokens in a directory tree.
 
 ```bash
-tok [PATH]
-tok -a [PATH]
+tokens [PATH]
+tokens -a [PATH]
 ```
 
 `PATH` defaults to `.`. A file is counted on its own; a directory is walked recursively. Hidden files, gitignored paths (including `target/`), and lockfiles (`Cargo.lock`, `package-lock.json`, `*.lock`, …) are skipped unless you name a file directly. `-l` / `--lockfiles` includes lockfiles.
