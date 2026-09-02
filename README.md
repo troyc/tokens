@@ -18,7 +18,7 @@ Default output is a `wc`-style list of per-file totals and a last line for the p
    5151  .
 ```
 
-`-a` / `--all` adds a Rust-aware split into code, comments, and tests:
+`-a` / `--all` adds a Rust-aware split into code/other, comments, and tests:
 
 ```
 total   code  comments  tests  path
@@ -34,7 +34,7 @@ On `.rs` files, comments are real `//` / `/* */` tokens (not markers inside stri
 
 Counts use OpenAI `o200k_base` (GPT-4o, GPT-4.1, GPT-5, o-series). The rank table is the official public file; the split regex and BPE merge are implemented in this repo.
 
-The integer is not a billing-grade count for Claude, Grok, Gemini, Qwen, or other labs. Those tokenizers disagree on the exact number and agree on magnitude for code.
+The integer is not a billing-grade count for Claude, Grok, Gemini, Qwen, or other labs. Those tokenizers disagree on the exact number and but generally agree on magnitude for code.
 
 ## Build
 
