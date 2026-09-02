@@ -37,6 +37,37 @@ Counts use OpenAI `o200k_base` (GPT-4o, GPT-4.1, GPT-5, o-series). The rank tabl
 
 The integer is not a billing-grade count for Claude, Grok, Gemini, Qwen, or other labs. Those tokenizers disagree on the exact number and agree on magnitude for code.
 
+## Completions
+
+`tc --generate-completion SHELL` prints a script for `bash`, `zsh`, `fish`, `elvish`, or `powershell`. Source it from your shell config, or install it where your shell already looks.
+
+```bash
+# bash (needs bash-completion)
+tc --generate-completion bash > ~/.local/share/bash-completion/completions/tc
+
+# zsh — put ~/.zfunc on $fpath before compinit
+mkdir -p ~/.zfunc
+tc --generate-completion zsh > ~/.zfunc/_tc
+# ~/.zshrc:  fpath=(~/.zfunc $fpath)
+
+# fish
+tc --generate-completion fish > ~/.config/fish/completions/tc.fish
+```
+
+### NixOS
+
+Generate the scripts in `postInstall` so they land in the profile. NixOS bash completion is on by default; enable zsh/fish completion in your config if you use those shells.
+
+```nix
+nativeBuildInputs = [ installShellFiles ];
+postInstall = lib.optionalString (stdenv.buildPlatform.canExecute stdenv.hostPlatform) ''
+  installShellCompletion --cmd tc \
+    --bash <($out/bin/tc --generate-completion bash) \
+    --fish <($out/bin/tc --generate-completion fish) \
+    --zsh  <($out/bin/tc --generate-completion zsh)
+'';
+```
+
 ## Build
 
 Rust 1.97.0, edition 2024:

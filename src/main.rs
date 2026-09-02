@@ -1,7 +1,9 @@
+use std::io;
 use std::path::PathBuf;
 
 use anyhow::Result;
-use clap::Parser;
+use clap::{CommandFactory, Parser, ValueHint};
+use clap_complete::{Shell, generate};
 
 use tc::classify::breakdown;
 use tc::count::count;
@@ -19,13 +21,23 @@ struct Cli {
     #[arg(short, long)]
     lockfiles: bool,
 
+    /// Print a completion script for the given shell.
+    #[arg(long, value_enum, value_name = "SHELL")]
+    generate_completion: Option<Shell>,
+
     /// File or directory to count.
-    #[arg(default_value = ".")]
+    #[arg(default_value = ".", value_hint = ValueHint::AnyPath)]
     path: PathBuf,
 }
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
+    if let Some(shell) = cli.generate_completion {
+        let mut cmd = Cli::command();
+        let name = cmd.get_name().to_string();
+        generate(shell, &mut cmd, name, &mut io::stdout());
+        return Ok(());
+    }
     let files = walk::collect_files(&cli.path, cli.lockfiles)?;
     let mut rows = Vec::new();
     for file in files {
