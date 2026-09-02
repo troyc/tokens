@@ -4,8 +4,8 @@ use std::process::Command;
 
 use tempfile::TempDir;
 
-fn tc() -> Command {
-    Command::new(env!("CARGO_BIN_EXE_tc"))
+fn tok() -> Command {
+    Command::new(env!("CARGO_BIN_EXE_tok"))
 }
 
 fn git_init(path: &Path) {
@@ -80,7 +80,7 @@ fn stdout(cmd: &mut Command) -> String {
 #[test]
 fn default_lists_files_and_omits_gitignored_target() {
     let dir = fixture();
-    let text = stdout(tc().arg(dir.path()));
+    let text = stdout(tok().arg(dir.path()));
     assert!(text.contains("src/lib.rs"), "{text}");
     assert!(text.contains("tests/it.rs"), "{text}");
     assert!(text.contains("README.md"), "{text}");
@@ -99,7 +99,7 @@ fn default_lists_files_and_omits_gitignored_target() {
 #[test]
 fn all_mode_shows_comments_and_tests() {
     let dir = fixture();
-    let text = stdout(tc().arg("-a").arg(dir.path()));
+    let text = stdout(tok().arg("-a").arg(dir.path()));
     let header = text.lines().next().unwrap();
     assert!(header.contains("total"));
     assert!(header.contains("code"));
@@ -133,7 +133,7 @@ fn all_mode_shows_comments_and_tests() {
 #[test]
 fn lockfiles_flag_includes_cargo_lock() {
     let dir = fixture();
-    let text = stdout(tc().arg("-l").arg(dir.path()));
+    let text = stdout(tok().arg("-l").arg(dir.path()));
     assert!(text.contains("Cargo.lock"), "{text}");
     assert!(text.contains("src/lib.rs"), "{text}");
 }
@@ -142,7 +142,7 @@ fn lockfiles_flag_includes_cargo_lock() {
 fn named_gitignored_file_is_still_counted() {
     let dir = fixture();
     let ignored = dir.path().join("target/foo.rs");
-    let text = stdout(tc().arg(&ignored));
+    let text = stdout(tok().arg(&ignored));
     assert!(text.contains("foo.rs"), "{text}");
     assert!(!text.contains("src/lib.rs"), "{text}");
 }
