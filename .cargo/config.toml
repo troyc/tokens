@@ -1,5 +1,0 @@
-# The rustup package on this NixOS host currently points its bundled LLD shim
-# at an expired store path. Use the stable system toolchain explicitly.
-[target.x86_64-unknown-linux-gnu]
-linker = "/run/current-system/sw/bin/clang"
-rustflags = ["-C", "link-arg=-fuse-ld=/run/current-system/sw/bin/mold"]
