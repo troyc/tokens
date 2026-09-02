@@ -307,8 +307,18 @@ fn skip_code_atom(bytes: &[u8], i: usize) -> usize {
     match bytes.get(i).copied() {
         Some(b'"') => skip_quoted(bytes, i + 1, b'"'),
         Some(b'\'') => skip_char_or_lifetime(bytes, i),
-        _ => i + 1,
+        Some(_) => skip_utf8_char(bytes, i),
+        None => i,
     }
+}
+
+fn skip_utf8_char(bytes: &[u8], i: usize) -> usize {
+    debug_assert!(i < bytes.len());
+    let mut i = i + 1;
+    while i < bytes.len() && bytes[i] & 0b1100_0000 == 0b1000_0000 {
+        i += 1;
+    }
+    i
 }
 
 fn skip_prefixed_string(bytes: &[u8], i: usize) -> Option<usize> {
@@ -372,8 +382,11 @@ fn skip_char_or_lifetime(bytes: &[u8], i: usize) -> usize {
     if bytes.get(i + 1).copied() == Some(b'\\') {
         return skip_quoted(bytes, i + 1, b'\'');
     }
-    if i + 2 < bytes.len() && bytes[i + 2] == b'\'' {
-        return i + 3;
+    if i + 1 < bytes.len() {
+        let after = skip_utf8_char(bytes, i + 1);
+        if bytes.get(after).copied() == Some(b'\'') {
+            return after + 1;
+        }
     }
     i + 1
 }
@@ -422,6 +435,45 @@ mod tests {
         let spans = lex(source);
         assert_eq!(spans[0].0, Kind::Comment);
         assert_eq!(&source[spans[0].1.clone()], "/* outer /* inner */ still */");
+    }
+
+    fn assert_lex_char_aligned(source: &str) {
+        let spans = lex(source);
+        assert!(
+            spans
+                .iter()
+                .all(|(_, range)| source.is_char_boundary(range.start)
+                    && source.is_char_boundary(range.end)),
+            "{spans:?}"
+        );
+        if let Some((_, last)) = spans.last() {
+            assert_eq!(last.end, source.len());
+        }
+        let mut prev = 0;
+        for (_, range) in &spans {
+            assert_eq!(range.start, prev);
+            prev = range.end;
+        }
+    }
+
+    #[test]
+    fn multibyte_char_literal_is_one_atom() {
+        let source = "'±'";
+        assert_lex_char_aligned(source);
+        let spans = lex(source);
+        assert_eq!(spans.len(), 1);
+        assert_eq!(&source[spans[0].1.clone()], "'±'");
+    }
+
+    #[test]
+    fn multibyte_utf8_in_code_comments_and_strings() {
+        let source = "let π = '±'; let s = \"中🦀\"; // ±\nfn x() {}\n";
+        assert_lex_char_aligned(source);
+        let _ = kinds_of(source);
+        let b = breakdown(Path::new("src/lib.rs"), source);
+        assert!(b.code > 0);
+        assert!(b.comments > 0);
+        assert_eq!(b.total(), b.code + b.comments + b.tests);
     }
 
     #[test]
