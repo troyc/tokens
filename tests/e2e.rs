@@ -55,6 +55,11 @@ fn fixture() -> TempDir {
     .unwrap();
     fs::write(dir.path().join("README.md"), "# demo\n\nA tiny crate.\n").unwrap();
     fs::write(
+        dir.path().join("Cargo.lock"),
+        "# this file is automatically @generated\n",
+    )
+    .unwrap();
+    fs::write(
         dir.path().join("target/foo.rs"),
         "// ignored build output\nfn ignored() {}\n",
     )
@@ -79,6 +84,7 @@ fn default_lists_files_and_omits_gitignored_target() {
     assert!(text.contains("src/lib.rs"), "{text}");
     assert!(text.contains("tests/it.rs"), "{text}");
     assert!(text.contains("README.md"), "{text}");
+    assert!(!text.contains("Cargo.lock"), "{text}");
     assert!(!text.contains("target/foo.rs"), "{text}");
     assert!(!text.contains("total"), "{text}");
     let lines: Vec<_> = text.lines().collect();
@@ -122,6 +128,14 @@ fn all_mode_shows_comments_and_tests() {
     let cols: Vec<_> = it.split_whitespace().collect();
     let tests: usize = cols[3].parse().unwrap();
     assert!(tests > 0, "{it}");
+}
+
+#[test]
+fn lockfiles_flag_includes_cargo_lock() {
+    let dir = fixture();
+    let text = stdout(tc().arg("-l").arg(dir.path()));
+    assert!(text.contains("Cargo.lock"), "{text}");
+    assert!(text.contains("src/lib.rs"), "{text}");
 }
 
 #[test]

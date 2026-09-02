@@ -5,9 +5,10 @@ use anyhow::{Context, Result, bail};
 
 /// Files to count under `root`.
 ///
-/// A file argument is returned as-is, even if gitignore would skip it.
-/// A directory is walked with gitignore and hidden-file rules.
-pub fn collect_files(root: &Path) -> Result<Vec<PathBuf>> {
+/// A file argument is returned as-is, even if gitignore or the lockfile
+/// filter would skip it. A directory is walked with gitignore and hidden-file
+/// rules. Lockfiles are omitted unless `include_lockfiles` is set.
+pub fn collect_files(root: &Path, include_lockfiles: bool) -> Result<Vec<PathBuf>> {
     if root.is_file() {
         return Ok(vec![root.to_path_buf()]);
     }
@@ -31,10 +32,30 @@ pub fn collect_files(root: &Path) -> Result<Vec<PathBuf>> {
         if !entry.file_type().is_some_and(|kind| kind.is_file()) {
             continue;
         }
-        files.push(entry.into_path());
+        let path = entry.into_path();
+        if !include_lockfiles && is_lockfile(&path) {
+            continue;
+        }
+        files.push(path);
     }
     files.sort();
     Ok(files)
+}
+
+/// Well-known package lockfiles (`Cargo.lock`, `package-lock.json`, `*.lock`, …).
+pub fn is_lockfile(path: &Path) -> bool {
+    let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+        return false;
+    };
+    name.ends_with(".lock")
+        || matches!(
+            name,
+            "package-lock.json"
+                | "npm-shrinkwrap.json"
+                | "pnpm-lock.yaml"
+                | "pnpm-lock.yml"
+                | "bun.lockb"
+        )
 }
 
 /// Read a UTF-8 text file. Binary files (NUL in the first 8 KiB, or invalid UTF-8) yield `None`.
@@ -76,7 +97,7 @@ mod tests {
         fs::write(dir.path().join("keep.rs"), "fn keep() {}\n").unwrap();
         fs::write(dir.path().join("target/skip.rs"), "fn skip() {}\n").unwrap();
 
-        let files = collect_files(dir.path()).unwrap();
+        let files = collect_files(dir.path(), false).unwrap();
         let names: Vec<_> = files
             .iter()
             .map(|path| path.file_name().unwrap().to_str().unwrap())
@@ -93,7 +114,7 @@ mod tests {
         fs::write(dir.path().join("secret.txt"), "hello").unwrap();
         fs::write(dir.path().join("keep.txt"), "world").unwrap();
 
-        let files = collect_files(dir.path()).unwrap();
+        let files = collect_files(dir.path(), false).unwrap();
         let names: Vec<_> = files
             .iter()
             .map(|path| path.file_name().unwrap().to_str().unwrap())
@@ -101,9 +122,33 @@ mod tests {
         assert!(names.contains(&"keep.txt"));
         assert!(!names.contains(&"secret.txt"));
 
-        let named = collect_files(&dir.path().join("secret.txt")).unwrap();
+        let named = collect_files(&dir.path().join("secret.txt"), false).unwrap();
         assert_eq!(named.len(), 1);
         assert_eq!(named[0].file_name().unwrap(), "secret.txt");
+    }
+
+    #[test]
+    fn lockfiles_are_skipped_unless_requested_or_named() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("lib.rs"), "fn lib() {}\n").unwrap();
+        fs::write(dir.path().join("Cargo.lock"), "# lock\n").unwrap();
+        fs::write(dir.path().join("package-lock.json"), "{}\n").unwrap();
+
+        let default_files = collect_files(dir.path(), false).unwrap();
+        let default = names(&default_files);
+        assert!(default.contains(&"lib.rs"));
+        assert!(!default.contains(&"Cargo.lock"));
+        assert!(!default.contains(&"package-lock.json"));
+
+        let lock_files = collect_files(dir.path(), true).unwrap();
+        let with_locks = names(&lock_files);
+        assert!(with_locks.contains(&"lib.rs"));
+        assert!(with_locks.contains(&"Cargo.lock"));
+        assert!(with_locks.contains(&"package-lock.json"));
+
+        let named = collect_files(&dir.path().join("Cargo.lock"), false).unwrap();
+        assert_eq!(named.len(), 1);
+        assert_eq!(named[0].file_name().unwrap(), "Cargo.lock");
     }
 
     #[test]
@@ -112,6 +157,23 @@ mod tests {
         let path = dir.path().join("blob.bin");
         fs::write(&path, b"ok\0nope").unwrap();
         assert!(read_text(&path).unwrap().is_none());
+    }
+
+    #[test]
+    fn lockfile_names() {
+        assert!(is_lockfile(Path::new("Cargo.lock")));
+        assert!(is_lockfile(Path::new("vendor/yarn.lock")));
+        assert!(is_lockfile(Path::new("package-lock.json")));
+        assert!(is_lockfile(Path::new("pnpm-lock.yaml")));
+        assert!(!is_lockfile(Path::new("src/lib.rs")));
+        assert!(!is_lockfile(Path::new("Cargo.toml")));
+    }
+
+    fn names(files: &[PathBuf]) -> Vec<&str> {
+        files
+            .iter()
+            .map(|path| path.file_name().unwrap().to_str().unwrap())
+            .collect()
     }
 
     fn git_init(path: &Path) {

@@ -15,6 +15,10 @@ struct Cli {
     #[arg(short, long)]
     all: bool,
 
+    /// Include lockfiles such as Cargo.lock.
+    #[arg(short, long)]
+    lockfiles: bool,
+
     /// File or directory to count.
     #[arg(default_value = ".")]
     path: PathBuf,
@@ -22,7 +26,7 @@ struct Cli {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    let files = walk::collect_files(&cli.path)?;
+    let files = walk::collect_files(&cli.path, cli.lockfiles)?;
     let mut rows = Vec::new();
     for file in files {
         let Some(text) = walk::read_text(&file)? else {

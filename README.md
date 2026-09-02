@@ -5,9 +5,10 @@ Count LLM tokens in a directory tree.
 ```bash
 tc [PATH]
 tc -a [PATH]
+tc -l [PATH]
 ```
 
-`PATH` defaults to `.`. A file is counted on its own; a directory is walked recursively. Hidden files and gitignored paths (including `target/`) are skipped unless you name a file directly.
+`PATH` defaults to `.`. A file is counted on its own; a directory is walked recursively. Hidden files, gitignored paths (including `target/`), and lockfiles (`Cargo.lock`, `package-lock.json`, `*.lock`, …) are skipped unless you name a file directly. `-l` / `--lockfiles` includes lockfiles.
 
 Default output is a `wc`-style list of per-file totals and a last line for the path you passed:
 
